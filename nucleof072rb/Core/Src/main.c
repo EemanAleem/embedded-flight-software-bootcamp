@@ -130,7 +130,7 @@ int main(void)
 	  pwm_data = ( (adc_rx[0] & BITMASK_2BITS) << 8 | adc_rx[1]);
 
 	  //5. Convert ADC value into PWM signal
-	  pwm_counts=
+	  pwm_counts = ((pwm_data / 1023) * 3200) + 3200;
 	  __HAL_TIM_SET_COMPARE(&PWM_TIMER_PORT, TIM_CHANNEL_1, pwm_counts);
 
 	  HAL_Delay(10);
