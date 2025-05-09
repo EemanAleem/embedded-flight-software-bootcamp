@@ -34,6 +34,17 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+#define ADC_START_BIT		(1U<<0) // 0000 0001 in binary
+#define ADC_TX_CONFIG		(1U<<7) // 1000 0000 in binary
+
+#define MCP4000_GPIO_Port	GPIOB
+#define MCP4000_GPIO_PIN	8
+
+#define PWM_TIMER_PORT		TIM1
+#define PWM_TIMER_CH		1
+
+#define BITMASK_2BITS		(1U<<0 | 1U<<1)
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -44,11 +55,15 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+SPI_HandleTypeDef hspi1;
+uint8_t adc_tx[2];
+uint8_t adc_rx[2];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -65,7 +80,10 @@ void SystemClock_Config(void);
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-
+  adc_tx[0] = ADC_START_BIT;
+  adc_tx[1] = ADC_TX_CONFIG;
+  uint16_t pwm_data;
+  uint16_t pwn_counts;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -86,6 +104,9 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_SPI1_Init();
+  MX_TIM1_Init();
+  HAL_TIM_PWM_Start (PWM_TIMER_PORT, PWM_TIMER_CH);
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
@@ -96,7 +117,23 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
+	  // 1. Begin transaction by pulling CS low
+	  HAL_GPIO_WritePin (MCP4000_GPIO_Port, MCP4000_GPIO_PIN, GPIO_PIN_CLEAR);
 
+	  // 2. Receive transmission from the ADC MCP4000 via SPI
+	  HAL_SPI_TransmitReceive(&hspi1, adc_tx, adc_rx, sizeof(adc_tx), 100); // 100 ms timeout
+
+	  // 3.End transaction by pulling CS high
+	  HAL_GPIO_WritePin (MCP4000_GPIO_Port, MCP4000_GPIO_PIN, GPIO_PIN_SET);
+
+	  //4. Combine the two 8-bit packets into one value.
+	  pwm_data = ( (adc_rx[0] & BITMASK_2BITS) << 8 | adc_rx[1]);
+
+	  //5. Convert ADC value into PWM signal
+	  pwm_counts=
+	  __HAL_TIM_SET_COMPARE(&PWM_TIMER_PORT, TIM_CHANNEL_1, pwm_counts);
+
+	  HAL_Delay(10);
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
