@@ -19,12 +19,15 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "spi.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>
+#include <stdlib.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -40,9 +43,6 @@
 #define MCP4000_GPIO_Port	GPIOB
 #define MCP4000_GPIO_PIN	8
 
-#define PWM_TIMER_PORT		TIM1
-#define PWM_TIMER_CH		1
-
 #define BITMASK_2BITS		(1U<<0 | 1U<<1)
 
 /* USER CODE END PD */
@@ -55,15 +55,12 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-SPI_HandleTypeDef hspi1;
-uint8_t adc_tx[2];
-uint8_t adc_rx[2];
+static uint8_t adc_tx_[2];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
-static void MX_GPIO_Init(void);
-static void MX_SPI1_Init(void);
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
@@ -79,11 +76,13 @@ static void MX_SPI1_Init(void);
   */
 int main(void)
 {
+
   /* USER CODE BEGIN 1 */
-  adc_tx[0] = ADC_START_BIT;
-  adc_tx[1] = ADC_TX_CONFIG;
-  uint16_t pwm_data;
-  uint16_t pwn_counts;
+  adc_tx_[0] = ADC_START_BIT;
+  adc_tx_[1] = ADC_TX_CONFIG;
+  uint8_t adc_rx[2];
+  uint16_t pwm_data, pwm_counts;
+  uint8_t spi_error_code;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -104,36 +103,40 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_USART2_UART_Init();
   MX_SPI1_Init();
   MX_TIM1_Init();
-  HAL_TIM_PWM_Start (PWM_TIMER_PORT, PWM_TIMER_CH);
-  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_TIM_PWM_Start (&htim1, TIM_CHANNEL_1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
 	  // 1. Begin transaction by pulling CS low
-	  HAL_GPIO_WritePin (MCP4000_GPIO_Port, MCP4000_GPIO_PIN, GPIO_PIN_CLEAR);
+	  HAL_GPIO_WritePin (MCP4000_GPIO_Port, MCP4000_GPIO_PIN, GPIO_PIN_RESET);
 
 	  // 2. Receive transmission from the ADC MCP4000 via SPI
-	  HAL_SPI_TransmitReceive(&hspi1, adc_tx, adc_rx, sizeof(adc_tx), 100); // 100 ms timeout
+	  spi_error_code = HAL_SPI_TransmitReceive(&hspi1, adc_tx_, adc_rx, sizeof(adc_tx_), 100); // 100 ms timeout
+	  if (spi_error_code != HAL_OK)
+		  printf("SPI HAL Error Code: %d", spi_error_code);
+	  else
+		  printf("SPI Transmit & Receive Successful.");
 
 	  // 3.End transaction by pulling CS high
 	  HAL_GPIO_WritePin (MCP4000_GPIO_Port, MCP4000_GPIO_PIN, GPIO_PIN_SET);
 
 	  //4. Combine the two 8-bit packets into one value.
-	  pwm_data = ( (adc_rx[0] & BITMASK_2BITS) << 8 | adc_rx[1]);
+	  pwm_data = ((adc_rx[0] & BITMASK_2BITS) << 8 || adc_rx[1]);
 
 	  //5. Convert ADC value into PWM signal
-	  pwm_counts = ((pwm_data / 1023) * 3200) + 3200;
-	  __HAL_TIM_SET_COMPARE(&PWM_TIMER_PORT, TIM_CHANNEL_1, pwm_counts);
+	  pwm_counts = (uint16_t)(((pwm_data / 1023.0) * 3200.0) + 3200.0);
+	  __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, pwm_counts);
 
 	  HAL_Delay(10);
+    /* USER CODE END WHILE */
+
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
@@ -159,6 +162,7 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
+
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
@@ -214,5 +218,3 @@ void assert_failed(uint8_t *file, uint32_t line)
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
-
-/************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/
