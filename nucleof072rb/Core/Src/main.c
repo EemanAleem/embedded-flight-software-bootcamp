@@ -80,7 +80,7 @@ int main(void)
   /* USER CODE BEGIN 1 */
   adc_tx_[0] = ADC_START_BIT;
   adc_tx_[1] = ADC_TX_CONFIG;
-  uint8_t adc_rx[2];
+  uint8_t adc_rx[3];
   uint16_t pwm_data, pwm_counts;
   uint8_t spi_error_code;
   /* USER CODE END 1 */
@@ -127,8 +127,8 @@ int main(void)
 	  // 3.End transaction by pulling CS high
 	  HAL_GPIO_WritePin (MCP4000_GPIO_Port, MCP4000_GPIO_PIN, GPIO_PIN_SET);
 
-	  //4. Combine the two 8-bit packets into one value.
-	  pwm_data = ((adc_rx[0] & BITMASK_2BITS) << 8 || adc_rx[1]);
+	  //4. Combine the two 8-bit packets (adc_rx array index 1 and 2) into one value
+	  pwm_data = ((adc_rx[1] & BITMASK_2BITS) << 8 | adc_rx[2]);
 
 	  //5. Convert ADC value into PWM signal
 	  pwm_counts = (uint16_t)(((pwm_data / 1023.0) * 3200.0) + 3200.0);
